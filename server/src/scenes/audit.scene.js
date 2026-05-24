@@ -12,6 +12,9 @@ export const auditScene = new Scenes.WizardScene(
   },
 
   async (ctx) => {
+    if (!ctx.message || !ctx.message.text) {
+      return ctx.reply('⚠️ Please describe your website URL and performance issues in a text message.');
+    }
     ctx.wizard.state.clientIssue = ctx.message.text;
 
     await ctx.reply(
@@ -25,6 +28,9 @@ export const auditScene = new Scenes.WizardScene(
   },
 
   async (ctx) => {
+    if (!ctx.message || !ctx.message.text) {
+      return ctx.reply('⚠️ Please provide your contact details (email or phone number) as a text message.');
+    }
     ctx.wizard.state.contactInfo = ctx.message.text;
 
     const payload = {
