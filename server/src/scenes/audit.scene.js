@@ -1,6 +1,32 @@
 import { Scenes } from 'telegraf';
 import dbService from '../services/db.service.js';
 
+const handleSceneCallbackQuery = async (ctx) => {
+  if (ctx.callbackQuery) {
+    try {
+      await ctx.answerCbQuery().catch(() => {});
+      await ctx.scene.leave();
+
+      const data = ctx.callbackQuery.data;
+      if (data === 'trigger_deploy') {
+        await ctx.reply('🚧 *New Deployment* — This service is coming soon. Contact @your_telegram_username for immediate assistance.', { parse_mode: 'Markdown' });
+      } else if (data === 'talk_engineer') {
+        await ctx.reply(
+          `💬 *Direct Engineering Access*\n\n` +
+          `Skip the support ticket line. Contact our infrastructure lead directly at @Rafshan for immediate migration consulting.`,
+          { parse_mode: 'Markdown' }
+        );
+      } else if (data === 'trigger_audit') {
+        await ctx.scene.enter('HOSTING_AUDIT_SCENE');
+      }
+    } catch (err) {
+      console.error('[SCENE CALLBACK ERROR]', err.message);
+    }
+    return true;
+  }
+  return false;
+};
+
 export const auditScene = new Scenes.WizardScene(
   'HOSTING_AUDIT_SCENE',
 
@@ -12,6 +38,8 @@ export const auditScene = new Scenes.WizardScene(
   },
 
   async (ctx) => {
+    if (await handleSceneCallbackQuery(ctx)) return;
+
     if (!ctx.message || !ctx.message.text) {
       return ctx.reply('⚠️ Please describe your website URL and performance issues in a text message.');
     }
@@ -28,6 +56,8 @@ export const auditScene = new Scenes.WizardScene(
   },
 
   async (ctx) => {
+    if (await handleSceneCallbackQuery(ctx)) return;
+
     if (!ctx.message || !ctx.message.text) {
       return ctx.reply('⚠️ Please provide your contact details (email or phone number) as a text message.');
     }

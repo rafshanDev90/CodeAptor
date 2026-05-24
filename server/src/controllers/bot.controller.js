@@ -34,24 +34,36 @@ export const registerBotCommands = (bot) => {
     );
   });
 
-  bot.action('trigger_audit', (ctx) => {
-    ctx.answerCbQuery();
-    ctx.scene.enter('HOSTING_AUDIT_SCENE');
+  bot.action('trigger_audit', async (ctx) => {
+    try {
+      await ctx.answerCbQuery().catch(() => {});
+      await ctx.scene.enter('HOSTING_AUDIT_SCENE');
+    } catch (err) {
+      console.error('[BOT ACTION ERROR] trigger_audit:', err);
+    }
   });
 
-  bot.action('trigger_deploy', (ctx) => {
-    ctx.answerCbQuery();
-    ctx.reply('🚧 *New Deployment* — This service is coming soon. Contact @your_telegram_username for immediate assistance.',
-      { parse_mode: 'Markdown' }
-    );
+  bot.action('trigger_deploy', async (ctx) => {
+    try {
+      await ctx.answerCbQuery().catch(() => {});
+      await ctx.reply('🚧 *New Deployment* — This service is coming soon. Contact @your_telegram_username for immediate assistance.',
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err) {
+      console.error('[BOT ACTION ERROR] trigger_deploy:', err);
+    }
   });
 
-  bot.action('talk_engineer', (ctx) => {
-    ctx.answerCbQuery();
-    ctx.reply(
-      `💬 *Direct Engineering Access*\n\n` +
-      `Skip the support ticket line. Contact our infrastructure lead directly at @Rafshan for immediate migration consulting.`,
-      { parse_mode: 'Markdown' }
-    );
+  bot.action('talk_engineer', async (ctx) => {
+    try {
+      await ctx.answerCbQuery().catch(() => {});
+      await ctx.reply(
+        `💬 *Direct Engineering Access*\n\n` +
+        `Skip the support ticket line. Contact our infrastructure lead directly at @Rafshan for immediate migration consulting.`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err) {
+      console.error('[BOT ACTION ERROR] talk_engineer:', err);
+    }
   });
 };
