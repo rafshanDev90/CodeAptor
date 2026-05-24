@@ -20,7 +20,7 @@ jobs:
             echo "⚡ Starting deployment on VPS..."
             
             # Navigate to the project directory (ensure this path matches your VPS setup)
-            cd /home/${{ secrets.VPS_USERNAME }}/CodeAptor || cd /var/www/CodeAptor
+            cd /var/www/amz/CodeAptor
             
             echo "📥 Fetching latest code changes..."
             git pull origin main
