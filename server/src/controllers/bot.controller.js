@@ -50,7 +50,7 @@ export const registerBotCommands = (bot) => {
     ctx.answerCbQuery();
     ctx.reply(
       `💬 *Direct Engineering Access*\n\n` +
-      `Skip the support ticket line. Contact our infrastructure lead directly at @your_telegram_username for immediate migration consulting.`,
+      `Skip the support ticket line. Contact our infrastructure lead directly at @Rafshan for immediate migration consulting.`,
       { parse_mode: 'Markdown' }
     );
   });
