@@ -1,5 +1,25 @@
 
 services:
+  codeaptor-agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: codeaptor-agent
+    restart: unless-stopped
+    ports:
+      - "${AGENT_PORT:-3001}:${AGENT_PORT:-3001}"
+    env_file:
+      - ./agent/.env
+    environment:
+      - AGENT_PORT=${AGENT_PORT:-3001}
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${AGENT_PORT:-3001}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
   codeaptor-bot:
     build:
       context: ./server
@@ -12,8 +32,12 @@ services:
       - ./server/.env
     environment:
       - NODE_ENV=production
+      - AGENT_URL=http://codeaptor-agent:${AGENT_PORT:-3001}
     volumes:
       - ./logs:/app/logs
+    depends_on:
+      codeaptor-agent:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${PORT:-8443}/api/v1/health"]
       interval: 30s
