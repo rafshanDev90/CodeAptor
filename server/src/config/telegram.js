@@ -1,5 +1,6 @@
 import { Telegraf, session } from 'telegraf';
 import dotenv from 'dotenv';
+import logger from '../middlewares/logger.js';
 
 dotenv.config();
 
@@ -12,9 +13,9 @@ bot.use(session());
 
 // Global Telegraf error boundary to keep the production bot online
 bot.catch((err, ctx) => {
-  console.error(`[TELEGRAF GLOBAL ERROR] Update ID ${ctx?.update?.update_id || 'unknown'} failed:`, err);
+  logger.error('Telegraf global error', { updateId: ctx?.update?.update_id, error: err.message });
   ctx.reply('⚠️ An unexpected error occurred. Please try again or contact support.').catch(replyErr => {
-    console.error('[TELEGRAF ERROR] Could not send error message to user:', replyErr.message);
+    logger.error('Failed to send error message to user', { error: replyErr.message });
   });
 });
 

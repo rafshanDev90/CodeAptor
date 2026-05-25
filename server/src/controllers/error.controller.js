@@ -1,3 +1,5 @@
+import logger from '../middlewares/logger.js';
+
 const handleAppError = (err, res) => {
   res.status(err.statusCode).json({
     status: err.status,
@@ -43,7 +45,7 @@ const globalErrorHandler = (err, req, res, next) => {
     return handlePgError(err, res);
   }
 
-  console.error('[UNEXPECTED ERROR]', err);
+  logger.error('Unhandled Express error', { error: err.message, stack: err.stack });
 
   res.status(500).json({
     status: 'error',

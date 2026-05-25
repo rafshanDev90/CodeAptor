@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import logger from '../middlewares/logger.js';
 
 dotenv.config();
 
@@ -15,7 +16,7 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 });
 
 const connectDB = async () => {
-  console.log('[DB] Supabase client initialized');
+  logger.info('Supabase client initialized');
 };
 
 export { supabase, connectDB };

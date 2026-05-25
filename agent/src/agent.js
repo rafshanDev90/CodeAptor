@@ -1,6 +1,5 @@
 import { generateText, tool } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
-import { z } from 'zod';
 import { analyzeWebsite } from './tools/analyzeWebsite.js';
 import { searchMemory } from './tools/searchMemory.js';
 import { saveLead } from './tools/saveLead.js';
@@ -37,28 +36,28 @@ function createTools(context) {
   return {
     analyzeWebsite: tool({
       description: analyzeWebsite.description,
-      parameters: z.object(analyzeWebsite.parameters),
+      parameters: analyzeWebsite.schema,
       execute: async (params) => {
         return analyzeWebsite.execute(params, context);
       },
     }),
     searchMemory: tool({
       description: searchMemory.description,
-      parameters: z.object(searchMemory.parameters),
+      parameters: searchMemory.schema,
       execute: async (params) => {
         return searchMemory.execute(params, context);
       },
     }),
     saveLead: tool({
       description: saveLead.description,
-      parameters: z.object(saveLead.parameters),
+      parameters: saveLead.schema,
       execute: async (params) => {
         return saveLead.execute(params, context);
       },
     }),
     escalate: tool({
       description: escalate.description,
-      parameters: z.object(escalate.parameters),
+      parameters: escalate.schema,
       execute: async (params) => {
         return escalate.execute(params, context);
       },
@@ -89,6 +88,15 @@ function formatAuditResponse(result) {
     msg += `🔒 *SSL:* ${status}`;
     if (ssl.issuer) msg += ` (${ssl.issuer})`;
     msg += '\n';
+  }
+
+  if (page.headers && Object.keys(page.headers).length > 0) {
+    msg += `\n📋 *Key HTTP Headers:*\n`;
+    if (page.headers['cache-control']) msg += `  Cache-Control: ${page.headers['cache-control']}\n`;
+    if (page.headers['content-encoding']) msg += `  Compression: ${page.headers['content-encoding']}\n`;
+    if (page.headers['strict-transport-security']) msg += `  HSTS: Enabled\n`;
+    if (page.headers['x-frame-options']) msg += `  X-Frame-Options: ${page.headers['x-frame-options']}\n`;
+    if (page.headers['x-content-type-options']) msg += `  X-Content-Type-Options: ${page.headers['x-content-type-options']}\n`;
   }
 
   if (page.brokenLinks !== undefined) {
@@ -122,7 +130,9 @@ export async function runAgent({ userId, message, username, sessionId }) {
   }
 
   for (const msg of recentHistory) {
-    fullHistory.push({ role: msg.role, content: msg.content });
+    if (msg.role === 'user' || msg.role === 'assistant') {
+      fullHistory.push({ role: msg.role, content: msg.content });
+    }
   }
 
   fullHistory.push({ role: 'user', content: message });

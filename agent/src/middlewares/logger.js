@@ -20,7 +20,7 @@ const fileFormat = winston.format.combine(
 
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-  defaultMeta: { service: 'codeaptor-bot' },
+  defaultMeta: { service: 'codeaptor-agent' },
   transports: [
     new winston.transports.Console({ format: consoleFormat }),
     new winston.transports.File({

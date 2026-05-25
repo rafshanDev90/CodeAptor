@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import logger from './middlewares/logger.js';
 import { runAgent } from './agent.js';
 
 const PORT = process.env.AGENT_PORT || 3001;
@@ -36,7 +37,7 @@ app.post('/api/chat', async (req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('[AGENT ERROR]', err);
+  logger.error('Agent request failed', { error: err.message, stack: err.stack });
   res.status(500).json({
     error: 'Agent processing failed',
     message: err.message,
@@ -44,6 +45,6 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[AGENT] Codeaptor AI agent listening on port ${PORT}`);
-  console.log(`[AGENT] Provider: groq | Model: ${process.env.GROQ_MODEL || 'llama-3.1-8b-instant'}`);
+  logger.info(`Agent listening on port ${PORT}`);
+  logger.info(`Provider: groq | Model: ${process.env.GROQ_MODEL || 'llama-3.1-8b-instant'}`);
 });

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_PUBLIC_URL;
@@ -19,10 +20,10 @@ function getClient() {
 
 export const saveLead = {
   description: 'Save a new lead to the database with the user\'s issue description and contact information. An engineer will follow up within 2 hours.',
-  parameters: {
-    issue: { type: 'string', description: 'Description of the user\'s website issue or infrastructure needs' },
-    contact: { type: 'string', description: 'User\'s email or phone number for follow-up' },
-  },
+  schema: z.object({
+    issue: z.string().describe('Description of the user\'s website issue or infrastructure needs'),
+    contact: z.string().describe('User\'s email or phone number for follow-up'),
+  }),
   execute: async ({ issue, contact }, context) => {
     const db = getClient();
 

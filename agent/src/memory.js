@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import logger from './middlewares/logger.js';
 
 const supabaseUrl = process.env.SUPABASE_PUBLIC_URL;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY;
@@ -8,7 +9,7 @@ let supabase = null;
 function getClient() {
   if (!supabase) {
     if (!supabaseUrl || !supabaseKey) {
-      console.warn('[MEMORY] Supabase not configured — memory disabled');
+      logger.warn('Supabase not configured — memory disabled');
       return null;
     }
     supabase = createClient(supabaseUrl, supabaseKey, {
@@ -35,7 +36,7 @@ const memory = {
       .single();
 
     if (error) {
-      console.error('[MEMORY] addMessage error:', error.message);
+      logger.error('addMessage failed', { error: error.message });
       return null;
     }
     return data;
@@ -59,7 +60,7 @@ const memory = {
     const { data, error } = await query;
 
     if (error) {
-      console.error('[MEMORY] getRecent error:', error.message);
+      logger.error('getRecent failed', { error: error.message });
       return [];
     }
     return (data || []).reverse();
@@ -81,7 +82,7 @@ const memory = {
       .limit(limit);
 
     if (error) {
-      console.error('[MEMORY] searchSimilar error:', error.message);
+      logger.error('searchSimilar failed', { error: error.message });
       return [];
     }
     return data || [];

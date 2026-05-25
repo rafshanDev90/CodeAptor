@@ -1,18 +1,27 @@
 const AGENT_URL = process.env.AGENT_URL || 'http://localhost:3001';
+const AGENT_TIMEOUT = parseInt(process.env.AGENT_TIMEOUT || '60000', 10);
 
 async function chatWithAgent({ userId, message, username, sessionId }) {
-  const response = await fetch(`${AGENT_URL}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, message, username, sessionId }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AGENT_TIMEOUT);
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'Agent request failed' }));
-    throw new Error(err.error || `Agent returned ${response.status}`);
+  try {
+    const response = await fetch(`${AGENT_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, message, username, sessionId }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Agent request failed' }));
+      throw new Error(err.error || `Agent returned ${response.status}`);
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timer);
   }
-
-  return response.json();
 }
 
 async function healthCheck() {

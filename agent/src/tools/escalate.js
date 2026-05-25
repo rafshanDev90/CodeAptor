@@ -1,8 +1,10 @@
+import { z } from 'zod';
+
 export const escalate = {
   description: 'Escalate the conversation to a human engineer. Use this when the user explicitly asks to speak with a person, has urgent issues, or their needs are beyond what you can handle.',
-  parameters: {
-    reason: { type: 'string', description: 'The reason for escalation and any context the engineer should know' },
-  },
+  schema: z.object({
+    reason: z.string().describe('The reason for escalation and any context the engineer should know'),
+  }),
   execute: async ({ reason }, context) => {
     const adminChatId = process.env.ADMIN_CHAT_ID || null;
 

@@ -1,4 +1,5 @@
 import { chatWithAgent } from '../agent-client.js';
+import logger from '../middlewares/logger.js';
 
 async function handleWithAgent(ctx, message) {
   try {
@@ -19,7 +20,7 @@ async function handleWithAgent(ctx, message) {
       await ctx.reply(result.text, { parse_mode: 'Markdown' });
     }
   } catch (err) {
-    console.error('[AGENT ERROR]', err.message);
+    logger.error('Agent call failed', { error: err.message });
     await ctx.reply(
       '⚠️ I\'m having trouble connecting to my AI engine right now. Please try again in a moment, or contact @Rafshan directly.'
     );
@@ -67,7 +68,7 @@ export const registerBotCommands = (bot) => {
       await ctx.answerCbQuery().catch(() => {});
       await handleWithAgent(ctx, 'I want to audit my website');
     } catch (err) {
-      console.error('[BOT ACTION ERROR] trigger_audit:', err);
+      logger.error('Callback trigger_audit failed', { error: err.message });
     }
   });
 
@@ -76,7 +77,7 @@ export const registerBotCommands = (bot) => {
       await ctx.answerCbQuery().catch(() => {});
       await handleWithAgent(ctx, 'I want to deploy a new project');
     } catch (err) {
-      console.error('[BOT ACTION ERROR] trigger_deploy:', err);
+      logger.error('Callback trigger_deploy failed', { error: err.message });
     }
   });
 
@@ -85,7 +86,7 @@ export const registerBotCommands = (bot) => {
       await ctx.answerCbQuery().catch(() => {});
       await handleWithAgent(ctx, 'I want to speak with a human engineer');
     } catch (err) {
-      console.error('[BOT ACTION ERROR] talk_engineer:', err);
+      logger.error('Callback talk_engineer failed', { error: err.message });
     }
   });
 
@@ -93,7 +94,7 @@ export const registerBotCommands = (bot) => {
     try {
       await handleWithAgent(ctx, ctx.message.text);
     } catch (err) {
-      console.error('[BOT TEXT ERROR]', err);
+      logger.error('Text handler error', { error: err.message });
     }
   });
 };

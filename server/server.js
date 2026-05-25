@@ -5,17 +5,18 @@ import fs from 'fs';
 import https from 'https';
 import { connectDB } from './src/config/database.js';
 import app, { bot, SECURE_WEBHOOK_ROUTE } from './app.js';
+import logger from './src/middlewares/logger.js';
 
 const PORT = process.env.PORT || 8443;
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[FATAL] Unhandled Rejection:', reason);
+  logger.error('Unhandled Rejection', { reason });
   bot.stop('SIGTERM');
   process.exit(1);
 });
 
 process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Uncaught Exception:', err);
+  logger.error('Uncaught Exception', { err: err.message, stack: err.stack });
   bot.stop('SIGTERM');
   process.exit(1);
 });
@@ -34,15 +35,15 @@ const start = async () => {
       cert: fs.readFileSync('./ssl/cert.pem'),
     };
     server = https.createServer(sslOptions, app);
-    console.log('[SSL] HTTPS server configured');
+    logger.info('HTTPS server configured');
   } else {
     const { default: http } = await import('http');
     server = http.createServer(app);
-    console.log('[SSL] No certs found — falling back to HTTP');
+    logger.warn('No SSL certs found — falling back to HTTP');
   }
 
   server.listen(PORT, async () => {
-    console.log(`[SERVER] Codeaptor online on port ${PORT}`);
+    logger.info(`Codeaptor server online on port ${PORT}`);
 
     const vpsIp = process.env.VPS_IP;
 
@@ -52,13 +53,13 @@ const start = async () => {
         await bot.telegram.setWebhook(webhookUrl, {
           certificate: { source: fs.readFileSync('./ssl/cert.pem'), filename: 'cert.pem' },
         });
-        console.log(`[WEBHOOK] Registered: ${webhookUrl}`);
+        logger.info(`Telegram webhook registered at ${webhookUrl}`);
       } catch (err) {
-        console.error('[WEBHOOK] Registration failed:', err.message);
+        logger.error('Webhook registration failed', { error: err.message });
       }
     } else {
-      console.log('[WEBHOOK] No VPS_IP configured — falling back to long-polling');
-      bot.launch().catch(err => console.error('[POLLING] Failed:', err.message));
+      logger.info('No VPS_IP configured — falling back to long-polling');
+      bot.launch().catch(err => logger.error('Polling start failed', { error: err.message }));
     }
   });
 };

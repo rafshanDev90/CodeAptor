@@ -1,6 +1,8 @@
 import dns from 'node:dns';
+import http from 'node:http';
 import https from 'node:https';
 import tls from 'node:tls';
+import { z } from 'zod';
 
 const { promises: dnsPromises } = dns;
 
@@ -9,7 +11,7 @@ function httpGet(url, timeout = 15000) {
     const parsed = new URL(url);
     const opts = {
       hostname: parsed.hostname,
-      port: 443,
+      port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
       path: parsed.pathname + parsed.search,
       method: 'GET',
       rejectUnauthorized: false,
@@ -19,7 +21,8 @@ function httpGet(url, timeout = 15000) {
       },
     };
 
-    const req = https.request(opts, (res) => {
+    const mod = parsed.protocol === 'https:' ? https : http;
+    const req = mod.request(opts, (res) => {
       const chunks = [];
       let totalSize = 0;
 
@@ -53,9 +56,9 @@ function httpGet(url, timeout = 15000) {
   });
 }
 
-function checkSSL(hostname, timeout = 10000) {
+function checkSSL(hostname, port = 443, timeout = 10000) {
   return new Promise((resolve) => {
-    const socket = tls.connect(443, hostname, { rejectUnauthorized: false, servername: hostname }, () => {
+    const socket = tls.connect(port, hostname, { rejectUnauthorized: false, servername: hostname }, () => {
       const cert = socket.getPeerCertificate();
       socket.end();
       resolve({
@@ -122,9 +125,9 @@ async function checkBrokenLinks(links, baseHostname, maxChecks = 10) {
 
 export const analyzeWebsite = {
   description: 'Run a full technical audit on a website: DNS records, SSL certificate, HTTP headers, page size, load time, title, meta description, and broken links.',
-  parameters: {
-    url: { type: 'string', description: 'The full website URL to analyze (e.g., https://example.com)' },
-  },
+  schema: z.object({
+    url: z.string().url().describe('The full website URL to analyze (e.g., https://example.com)'),
+  }),
   execute: async ({ url }) => {
     const startTime = Date.now();
     const parsed = new URL(url);
@@ -138,7 +141,7 @@ export const analyzeWebsite = {
       .then(ns => ({ status: 'ok', nameservers: ns }))
       .catch(() => ({ status: 'not_found', nameservers: [] }));
 
-    const sslPromise = checkSSL(hostname);
+    const sslPromise = checkSSL(hostname, parsed.port || 443);
     const httpPromise = httpGet(url);
 
     const [dnsResult, nsResult, sslResult, httpResult] = await Promise.allSettled([
@@ -161,6 +164,12 @@ export const analyzeWebsite = {
       page.contentType = contentType;
       page.sizeBytes = size;
       page.sizeKB = Math.round(size / 1024);
+
+      const keyHeaders = ['cache-control', 'content-encoding', 'x-frame-options', 'x-content-type-options', 'strict-transport-security', 'referrer-policy'];
+      page.headers = {};
+      for (const h of keyHeaders) {
+        if (res.headers[h]) page.headers[h] = res.headers[h];
+      }
 
       if (res.body) {
         page.title = parseTitle(res.body) || null;
