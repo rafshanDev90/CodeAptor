@@ -3,10 +3,8 @@ import cors from 'cors';
 import routes from './src/routes/index.js';
 import globalErrorHandler from './src/controllers/error.controller.js';
 import bot from './src/config/telegram.js';
-import { stage } from './src/scenes/index.js';
 import { registerBotCommands } from './src/controllers/bot.controller.js';
 
-bot.use(stage.middleware());
 registerBotCommands(bot);
 
 const SECURE_WEBHOOK_ROUTE = `/engine-gateway-${process.env.BOT_TOKEN?.slice(0, 12)}`;

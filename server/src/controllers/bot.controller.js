@@ -1,3 +1,31 @@
+import { chatWithAgent } from '../agent-client.js';
+
+async function handleWithAgent(ctx, message) {
+  try {
+    await ctx.sendChatAction('typing');
+
+    const result = await chatWithAgent({
+      userId: ctx.from.id,
+      username: ctx.from.username || 'unknown',
+      message,
+      sessionId: `${ctx.from.id}`,
+    });
+
+    const formattedData = result.data?.formatted;
+
+    if (formattedData) {
+      await ctx.reply(formattedData, { parse_mode: 'Markdown' });
+    } else if (result.text) {
+      await ctx.reply(result.text, { parse_mode: 'Markdown' });
+    }
+  } catch (err) {
+    console.error('[AGENT ERROR]', err.message);
+    await ctx.reply(
+      '⚠️ I\'m having trouble connecting to my AI engine right now. Please try again in a moment, or contact @Rafshan directly.'
+    );
+  }
+}
+
 export const registerBotCommands = (bot) => {
 
   bot.start((ctx) => {
@@ -29,7 +57,7 @@ export const registerBotCommands = (bot) => {
       `*Codeaptor Bot Commands:*\n\n` +
       `/start - Begin infrastructure assessment\n` +
       `/help - Show this help message\n\n` +
-      `*Or use the buttons below to get started instantly.`,
+      `*You can also just describe your infrastructure needs in your own words and I\'ll help you out.*`,
       { parse_mode: 'Markdown' }
     );
   });
@@ -37,7 +65,7 @@ export const registerBotCommands = (bot) => {
   bot.action('trigger_audit', async (ctx) => {
     try {
       await ctx.answerCbQuery().catch(() => {});
-      await ctx.scene.enter('HOSTING_AUDIT_SCENE');
+      await handleWithAgent(ctx, 'I want to audit my website');
     } catch (err) {
       console.error('[BOT ACTION ERROR] trigger_audit:', err);
     }
@@ -46,9 +74,7 @@ export const registerBotCommands = (bot) => {
   bot.action('trigger_deploy', async (ctx) => {
     try {
       await ctx.answerCbQuery().catch(() => {});
-      await ctx.reply('🚧 *New Deployment* — This service is coming soon. Contact @your_telegram_username for immediate assistance.',
-        { parse_mode: 'Markdown' }
-      );
+      await handleWithAgent(ctx, 'I want to deploy a new project');
     } catch (err) {
       console.error('[BOT ACTION ERROR] trigger_deploy:', err);
     }
@@ -57,13 +83,17 @@ export const registerBotCommands = (bot) => {
   bot.action('talk_engineer', async (ctx) => {
     try {
       await ctx.answerCbQuery().catch(() => {});
-      await ctx.reply(
-        `💬 *Direct Engineering Access*\n\n` +
-        `Skip the support ticket line. Contact our infrastructure lead directly at @Rafshan for immediate migration consulting.`,
-        { parse_mode: 'Markdown' }
-      );
+      await handleWithAgent(ctx, 'I want to speak with a human engineer');
     } catch (err) {
       console.error('[BOT ACTION ERROR] talk_engineer:', err);
+    }
+  });
+
+  bot.on('text', async (ctx) => {
+    try {
+      await handleWithAgent(ctx, ctx.message.text);
+    } catch (err) {
+      console.error('[BOT TEXT ERROR]', err);
     }
   });
 };
