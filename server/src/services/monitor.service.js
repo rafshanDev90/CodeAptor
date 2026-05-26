@@ -4,6 +4,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 const COMMANDS = {
+  cores: 'nproc',
   cpu: `awk '{print $1}' /proc/loadavg`,
   memory: `free -m | awk 'NR==2{printf "%.1f", $3/$2*100}'`,
   disk: `df -h / | tail -1 | awk '{print $5}' | sed 's/%//'`,
@@ -22,11 +23,11 @@ async function runCommand(cmd) {
   }
 }
 
-function checkCpu(output, config) {
-  const load = parseFloat(output);
+function checkCpu(load, cores, config) {
   if (isNaN(load)) return { status: 'error', value: 0, message: 'Could not read CPU load' };
-  const status = load >= config.cpu_critical / 100 ? 'fail' : load >= config.cpu_warning / 100 ? 'warning' : 'pass';
-  return { status, value: load, message: `CPU load: ${load.toFixed(2)}` };
+  const pct = (load / cores) * 100;
+  const status = pct >= config.cpu_critical ? 'fail' : pct >= config.cpu_warning ? 'warning' : 'pass';
+  return { status, value: load, message: `CPU: ${pct.toFixed(0)}% (load ${load.toFixed(2)} / ${cores} cores)` };
 }
 
 function checkMemory(output, config) {
@@ -61,15 +62,18 @@ export async function runChecks(domain) {
     ssl_warning_days: 14, ssl_critical_days: 7,
   };
 
-  const [cpuOut, memOut, diskOut, sslOut] = await Promise.all([
+  const [coresOut, cpuOut, memOut, diskOut, sslOut] = await Promise.all([
+    runCommand(COMMANDS.cores),
     runCommand(COMMANDS.cpu),
     runCommand(COMMANDS.memory),
     runCommand(COMMANDS.disk),
     domain ? runCommand(sslCommand(domain)) : Promise.resolve(''),
   ]);
 
+  const cores = parseInt(coresOut) || 1;
+
   return [
-    { check_type: 'cpu', ...checkCpu(cpuOut, config) },
+    { check_type: 'cpu', ...checkCpu(parseFloat(cpuOut), cores, config) },
     { check_type: 'memory', ...checkMemory(memOut, config) },
     { check_type: 'disk', ...checkDisk(diskOut, config) },
     { check_type: 'ssl', ...checkSsl(sslOut, config) },
