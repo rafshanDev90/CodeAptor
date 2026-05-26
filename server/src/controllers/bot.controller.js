@@ -1,100 +1,152 @@
-import { chatWithAgent } from '../agent-client.js';
+import supabase from '../config/database.js';
 import logger from '../middlewares/logger.js';
-
-async function handleWithAgent(ctx, message) {
-  try {
-    await ctx.sendChatAction('typing');
-
-    const result = await chatWithAgent({
-      userId: ctx.from.id,
-      username: ctx.from.username || 'unknown',
-      message,
-      sessionId: `${ctx.from.id}`,
-    });
-
-    const formattedData = result.data?.formatted;
-
-    if (formattedData) {
-      await ctx.reply(formattedData, { parse_mode: 'Markdown' });
-    } else if (result.text) {
-      await ctx.reply(result.text, { parse_mode: 'Markdown' });
-    }
-  } catch (err) {
-    logger.error('Agent call failed', { error: err.message });
-    await ctx.reply(
-      '⚠️ I\'m having trouble connecting to my AI engine right now. Please try again in a moment, or contact @Rafshan directly.'
-    );
-  }
-}
 
 export const registerBotCommands = (bot) => {
 
   bot.start((ctx) => {
     ctx.reply(
-      `🚀 *Welcome to Codeaptor Infrastructure Systems*\n\n` +
-      `We eliminate your cloud server overhead. You build your application, and we deploy, secure, monitor, and scale it on isolated, high-performance bare VPS hardware.\n\n` +
-      `*What is your current infrastructure requirement?*`,
-      {
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '⚠️ My Website is Slow / Broken', callback_data: 'trigger_audit' }
-            ],
-            [
-              { text: '🚀 Deploy a New Project', callback_data: 'trigger_deploy' }
-            ],
-            [
-              { text: '📊 Speak with an Engineer', callback_data: 'talk_engineer' }
-            ]
-          ]
-        }
-      }
+      `🚀 *Codeaptor Server Monitoring*\n\n` +
+      `I monitor your servers and alert you when something needs attention.\n\n` +
+      `*Commands:*\n` +
+      `/status — View server health\n` +
+      `/alerts — View open alerts\n` +
+      `/ack\\_N — Acknowledge alert (e.g., /ack\\_42)\n` +
+      `/help — Full command list`,
+      { parse_mode: 'Markdown' }
     );
   });
 
   bot.help((ctx) => {
     ctx.reply(
-      `*Codeaptor Bot Commands:*\n\n` +
-      `/start - Begin infrastructure assessment\n` +
-      `/help - Show this help message\n\n` +
-      `*You can also just describe your infrastructure needs in your own words and I\'ll help you out.*`,
+      `*Commands:*\n\n` +
+      `/status — Show all servers and latest check results\n` +
+      `/alerts — List all unresolved alerts\n` +
+      `/ack\\_N — Acknowledge alert by ID (from /alerts)\n` +
+      `/start — Welcome message\n` +
+      `/help — This message\n\n` +
+      `Alerts are sent automatically when a server metric exceeds its threshold.`,
       { parse_mode: 'Markdown' }
     );
   });
 
-  bot.action('trigger_audit', async (ctx) => {
+  bot.command('status', async (ctx) => {
     try {
-      await ctx.answerCbQuery().catch(() => {});
-      await handleWithAgent(ctx, 'I want to audit my website');
+      const chatId = ctx.from.id;
+      const { data: servers } = await supabase
+        .from('servers')
+        .select('*')
+        .or(`telegram_chat_id.eq.${chatId},type.eq.self`);
+
+      if (!servers || servers.length === 0) {
+        return ctx.reply('No servers found.');
+      }
+
+      const lines = ['📊 *Server Status*', ''];
+
+      for (const server of servers) {
+        const { data: checks } = await supabase
+          .from('checks')
+          .select('check_type, status, value, message')
+          .eq('server_id', server.id)
+          .order('checked_at', { ascending: false })
+          .limit(6);
+
+        const statusMap = { pass: '✅', warning: '⚠️', fail: '🔴', error: '⚪' };
+        lines.push(`*${server.name}*`);
+
+        if (checks) {
+          const seen = new Set();
+          for (const c of checks) {
+            if (seen.has(c.check_type)) continue;
+            seen.add(c.check_type);
+            lines.push(`${statusMap[c.status] || '⚪'} ${c.check_type.toUpperCase()}: ${c.message}`);
+          }
+        }
+        lines.push('');
+      }
+
+      await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
     } catch (err) {
-      logger.error('Callback trigger_audit failed', { error: err.message });
+      logger.error('/status failed', { error: err.message });
+      await ctx.reply('Failed to fetch server status.');
     }
   });
 
-  bot.action('trigger_deploy', async (ctx) => {
+  bot.command('alerts', async (ctx) => {
     try {
-      await ctx.answerCbQuery().catch(() => {});
-      await handleWithAgent(ctx, 'I want to deploy a new project');
+      const chatId = ctx.from.id;
+      const { data: servers } = await supabase
+        .from('servers')
+        .select('id, name')
+        .or(`telegram_chat_id.eq.${chatId},type.eq.self`);
+
+      if (!servers || servers.length === 0) return ctx.reply('No servers found.');
+
+      const serverIds = servers.map(s => s.id);
+      const { data: alerts } = await supabase
+        .from('alerts')
+        .select('*, servers(name)')
+        .in('server_id', serverIds)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (!alerts || alerts.length === 0) {
+        return ctx.reply('✅ No open alerts. Everything looks healthy.');
+      }
+
+      const lines = ['🔔 *Open Alerts*', ''];
+      for (const a of alerts) {
+        const emoji = a.severity === 'fail' ? '🔴' : '⚠️';
+        lines.push(`${emoji} *${a.servers?.name || 'Unknown'}* — ${a.check_type.toUpperCase()}`);
+        lines.push(`   ${a.message}`);
+        lines.push(`   \`/ack_${a.id}\` to acknowledge`);
+        lines.push('');
+      }
+
+      await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
     } catch (err) {
-      logger.error('Callback trigger_deploy failed', { error: err.message });
+      logger.error('/alerts failed', { error: err.message });
+      await ctx.reply('Failed to fetch alerts.');
     }
   });
 
-  bot.action('talk_engineer', async (ctx) => {
+  bot.hears(/\/ack_(\d+)/, async (ctx) => {
     try {
-      await ctx.answerCbQuery().catch(() => {});
-      await handleWithAgent(ctx, 'I want to speak with a human engineer');
+      const alertId = ctx.match[1];
+      const chatId = ctx.from.id;
+
+      const { data: alert } = await supabase
+        .from('alerts')
+        .select('*, servers!inner(*)')
+        .eq('id', alertId)
+        .single();
+
+      if (!alert) return ctx.reply('Alert not found.');
+
+      const server = alert.servers;
+      if (server.telegram_chat_id && server.telegram_chat_id !== chatId) {
+        return ctx.reply('This alert does not belong to you.');
+      }
+
+      await supabase
+        .from('alerts')
+        .update({ status: 'acknowledged', acknowledged_at: new Date().toISOString() })
+        .eq('id', alertId);
+
+      await ctx.reply(`✅ Alert acknowledged for *${server.name}*.`, { parse_mode: 'Markdown' });
+      logger.info('Alert acknowledged', { alertId, by: chatId });
     } catch (err) {
-      logger.error('Callback talk_engineer failed', { error: err.message });
+      logger.error('/ack failed', { error: err.message });
+      await ctx.reply('Failed to acknowledge alert.');
     }
   });
 
   bot.on('text', async (ctx) => {
-    try {
-      await handleWithAgent(ctx, ctx.message.text);
-    } catch (err) {
-      logger.error('Text handler error', { error: err.message });
-    }
+    if (ctx.message.text.startsWith('/')) return;
+    await ctx.reply(
+      'Use /status to check your servers or /help for all commands.',
+      { parse_mode: 'Markdown' }
+    );
   });
 };

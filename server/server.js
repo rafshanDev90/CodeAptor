@@ -3,9 +3,10 @@ dotenv.config();
 
 import fs from 'fs';
 import https from 'https';
-import { connectDB } from './src/config/database.js';
+import { connectDB, supabase } from './src/config/database.js';
 import app, { bot, SECURE_WEBHOOK_ROUTE } from './app.js';
 import logger from './src/middlewares/logger.js';
+import { startMonitoring } from './src/services/monitor.scheduler.js';
 
 const PORT = process.env.PORT || 8443;
 
@@ -44,6 +45,8 @@ const start = async () => {
 
   server.listen(PORT, async () => {
     logger.info(`Codeaptor server online on port ${PORT}`);
+
+    startMonitoring(supabase, bot);
 
     const vpsIp = process.env.VPS_IP;
 
