@@ -4,14 +4,24 @@ import { analyzeWebsite } from './tools/analyzeWebsite.js';
 import { searchMemory } from './tools/searchMemory.js';
 import { saveLead } from './tools/saveLead.js';
 import { escalate } from './tools/escalate.js';
+import { webSearch } from './tools/webSearch.js';
 import memory from './memory.js';
+import {
+  withRateLimit, estimateInputTokens,
+  getActiveModel, reportModelError, isRateLimitError, waitForAnyModel,
+} from './rate-limiter.js';
+import logger from './middlewares/logger.js';
 
 const groq = createOpenAI({
   baseURL: 'https://api.groq.com/openai/v1',
   apiKey: process.env.GROQ_API_KEY || '',
 });
 
-const model = groq.chat(process.env.GROQ_MODEL || 'llama-3.1-8b-instant');
+const FALLBACK_LIMIT = 6;
+
+function createModelForId(id) {
+  return groq.chat(id);
+}
 
 const systemPrompt = `You are Codeaptor AI, a technical infrastructure assistant for Codeaptor — a managed DevOps and hosting company.
 
@@ -19,6 +29,7 @@ Your job is to help users understand their website and infrastructure issues, pe
 
 TOOLS:
 - analyzeWebsite: Run a full technical audit (DNS, SSL, HTTP headers, page size, title, broken links). Always ask for the URL first.
+- webSearch: Search the web for current information. Use this to research technologies, pricing, best practices, documentation, or any topic needing up-to-date data.
 - searchMemory: Look up past conversations with this user to remember their context.
 - saveLead: Save a qualified lead with contact info and issue description. Only use when the user provides contact info (email/phone) AND a clear issue.
 - escalate: Transfer to a human engineer when the user explicitly asks to speak with a person or has urgent needs.
@@ -39,6 +50,13 @@ function createTools(context) {
       parameters: analyzeWebsite.schema,
       execute: async (params) => {
         return analyzeWebsite.execute(params, context);
+      },
+    }),
+    webSearch: tool({
+      description: webSearch.description,
+      parameters: webSearch.schema,
+      execute: async (params) => {
+        return webSearch.execute(params, context);
       },
     }),
     searchMemory: tool({
@@ -139,12 +157,44 @@ export async function runAgent({ userId, message, username, sessionId }) {
 
   const tools = createTools(context);
 
-  const result = await generateText({
-    model,
-    system: systemPrompt,
-    messages: fullHistory,
-    tools,
-    maxSteps: 15,
+  const estimatedTokens = estimateInputTokens(systemPrompt, fullHistory, message);
+
+  const result = await withRateLimit(estimatedTokens, async () => {
+    let lastError = null;
+
+    for (let attempt = 0; attempt < FALLBACK_LIMIT; attempt++) {
+      const modelId = getActiveModel();
+
+      if (!modelId) {
+        await waitForAnyModel();
+      }
+
+      const tryModelId = modelId || getActiveModel();
+      if (!tryModelId) continue;
+
+      try {
+        const output = await generateText({
+          model: createModelForId(tryModelId),
+          system: systemPrompt,
+          messages: fullHistory,
+          tools,
+          maxSteps: 15,
+        });
+        logger.info('LLM call succeeded', { model: tryModelId, attempt: attempt + 1 });
+        return output;
+      } catch (err) {
+        lastError = err;
+        if (isRateLimitError(err)) {
+          reportModelError(tryModelId);
+          logger.warn('Rate limited, switching model', { model: tryModelId, attempt: attempt + 1 });
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    logger.error('All models exhausted', { error: lastError?.message });
+    throw lastError;
   });
 
   const responseText = result.text || 'I processed your request.';
